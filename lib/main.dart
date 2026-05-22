@@ -33,13 +33,11 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  // プラグインの初期化
   final stt.SpeechToText _speech = stt.SpeechToText();
   final FlutterTts _tts = FlutterTts();
   final TextEditingController _apiKeyController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
-  // 状態管理用変数
   bool _isListening = false;
   String _interimText = '';
   String _statusText = '待機中...';
@@ -47,7 +45,6 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _showText = true;
   bool _showHint = false;
 
-  // 会話履歴（プロンプトシステム設定含む）
   final List<Map<String, String>> _messages = [];
   final List<Map<String, String>> _apiHistory = [
     {
@@ -60,7 +57,6 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _initSpeechAndTts();
-    // 最初のAIメッセージを追加
     _messages.add({
       'role': 'ai',
       'text': "Hello! Let's practice English. Press the button to start speaking, and press it again when you're finished.",
@@ -68,15 +64,28 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  // 音声認識と読み上げの初期設定
+  // 🛠️ iOSでクラッシュしないように音声周りの初期化を厳格化
   void _initSpeechAndTts() async {
-    await _speech.initialize(
-      onError: (val) => setState(() { _statusText = 'エラーが発生しました'; _isListening = false; }),
-    );
-    await _tts.setLanguage("en-US");
+    try {
+      await _speech.initialize(
+        onError: (val) => setState(() { _statusText = 'エラーが発生しました'; _isListening = false; }),
+      );
+      
+      // iOS向けのオーディオカテゴリ設定（マイクとスピーカーを両立させてクラッシュを防ぐ）
+      await _tts.setIosAudioCategory(
+        IosTextToSpeechAudioCategory.playAndRecord,
+        [
+          IosTextToSpeechAudioCategoryOptions.allowBluetooth,
+          IosTextToSpeechAudioCategoryOptions.defaultToSpeaker
+        ],
+      );
+      
+      await _tts.setLanguage("en-US");
+    } catch (e) {
+      debugPrint("Initialization error: $e");
+    }
   }
 
-  // 録音の開始/停止を切り替える
   void _toggleListening() async {
     if (!_isListening) {
       bool available = await _speech.initialize();
@@ -86,26 +95,23 @@ class _ChatScreenState extends State<ChatScreen> {
           _interimText = '';
           _statusText = '聞き取り中...（どれだけ止まっても大丈夫です）';
         });
-// 🚀 修正後（ここをそっくり入れ替えます）
-        // 英語(US)で聞き取り開始
         _speech.listen(
           localeId: 'en_US',
-          listenFor: const Duration(seconds: 30), // 最大30秒間じっくり聞く
-          pauseFor: const Duration(seconds: 10),  // 10秒間沈黙しても勝手に終了しない
+          listenFor: const Duration(seconds: 30),
+          pauseFor: const Duration(seconds: 10),
           onResult: (val) {
             setState(() {
               _interimText = val.recognizedWords;
             });
-            // 自動確定は無視し、画面には喋った文字だけをリアルタイム反映する
           },
-        );      }
+        );
+      }
     } else {
-      _speech.stop();
+      await _speech.stop();
       _handleUserSpeech(_interimText);
     }
   }
 
-  // ユーザーが話し終わった後の処理
   void _handleUserSpeech(String text) async {
     if (text.trim().isEmpty) return;
 
@@ -126,7 +132,6 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
 
     try {
-      // 1. OpenAI APIを呼び出して返答を取得
       final response = await http.post(
         Uri.parse('https://api.openai.com/v1/chat/completions'),
         headers: {
@@ -142,7 +147,6 @@ class _ChatScreenState extends State<ChatScreen> {
       final data = jsonDecode(utf8.decode(response.bodyBytes));
       final reply = data['choices'][0]['message']['content'] as String;
 
-      // 2. ヒント表示にチェックがあれば日本語訳を取得
       String hint = '';
       if (_showHint) {
         hint = await _getJapaneseHint(reply, apiKey);
@@ -155,7 +159,6 @@ class _ChatScreenState extends State<ChatScreen> {
       });
       _scrollToBottom();
 
-      // [Correction: ...] を除いたテキストをスマホに喋らせる
       String speakText = reply.replaceAll(RegExp(r'\[Correction: .*?\]'), '');
       _speak(speakText);
 
@@ -164,7 +167,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // 日本語訳（ヒント）を取得する関数
   Future<String> _getJapaneseHint(String text, String apiKey) async {
     try {
       final res = await http.post(
@@ -188,13 +190,11 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // スマホに英語を喋らせる関数
   void _speak(String text) async {
     await _tts.setSpeechRate(_speed);
     await _tts.speak(text);
   }
 
-  // もう一度聞く
   void _repeatLast() {
     final aiMsgs = _messages.where((m) => m['role'] == 'ai').toList();
     if (aiMsgs.isNotEmpty) {
@@ -203,7 +203,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // チャットクリア
   void _clearChat() {
     setState(() {
       _messages.clear();
@@ -217,7 +216,6 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  // 画面を自動で一番下までスクロールする
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -241,7 +239,6 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-          // 設定エリア
           Container(
             color: Colors.white,
             padding: const EdgeInsets.all(10),
@@ -297,22 +294,17 @@ class _ChatScreenState extends State<ChatScreen> {
               ],
             ),
           ),
-          
-          // チャット表示エリア
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
               padding: const EdgeInsets.all(20),
               itemCount: _messages.length,
               itemBuilder: (context, index) {
-// 🚀 修正後（ここをそっくり入れ替えます）
                 final msg = _messages[index];
                 final isUser = (msg['role'] == 'user');
                 final text = msg['text'] ?? '';
-                // 確実に文字列として取得し、nullなら空文字にする安全策
                 final String hint = msg['hint']?.toString() ?? '';
 
-                // 文法修正のパース
                 String displayText = text;
                 String correctionText = '';
                 if (text.isNotEmpty) {
@@ -352,9 +344,8 @@ class _ChatScreenState extends State<ChatScreen> {
                             color: (!isUser && !_showText) ? Colors.grey : Colors.black
                           ),
                         ),
-// 🚀 修正後（ここから一番下までをこれに差し替えてください）
                         if (correctionText.isNotEmpty) ...[
-                          const Divider(height: 15, color: Colors.redAccent), // 普通の線にして色を分かりやすくしました
+                          const Divider(height: 15, color: Colors.redAccent),
                           Text('💡 $correctionText', style: const TextStyle(fontSize: 14, color: Colors.red)),
                         ],
                         if (hint.isNotEmpty) ...[
@@ -368,8 +359,6 @@ class _ChatScreenState extends State<ChatScreen> {
               },
             ),
           ),
-
-          // 下部コントロールエリア
           Container(
             color: Colors.white,
             padding: const EdgeInsets.all(20),
