@@ -85,11 +85,11 @@ class _ChatScreenState extends State<ChatScreen> {
       debugPrint("Initialization error: $e");
     }
   }
-
   void _toggleListening() async {
     if (!_isListening) {
-      bool available = await _speech.initialize();
-      if (available) {
+      // すでに initState で initialize は終わっているので、
+      // _speech.isAvailable（利用可能か）をチェックするだけにします
+      if (_speech.isAvailable) {
         setState(() {
           _isListening = true;
           _interimText = '';
@@ -105,6 +105,8 @@ class _ChatScreenState extends State<ChatScreen> {
             });
           },
         );
+      } else {
+        setState(() { _statusText = 'マイクが準備できていません'; });
       }
     } else {
       await _speech.stop();
