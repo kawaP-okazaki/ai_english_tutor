@@ -213,11 +213,19 @@ void _speak(String text) async {
         final url = html.Url.createObjectUrlFromBlob(blob);
         final audio = html.AudioElement(url);
         
-        // 💡 【ここから対策】音声がすべて流れ終わったら、自動でマイクを再起動する
+        // 💡 【Webエラー完全対策版】音声がすべて流れ終わったら実行する処理
         audio.onEnded.listen((event) {
-          // あなたのコードにある「聞き取り開始メソッド（おそらく _startListening など）」をここで呼び出します
-          _startListening(); 
-          setState(() { _statusText = 'お話しください...'; });
+          // 安全のために、ちょっとだけ（0.3秒）待ってからマイクのボタンを自動で押し直す
+          Future.delayed(const Duration(milliseconds: 300), () {
+            // もしエラーが起きてもアプリがクラッシュしないように保護
+            try {
+              // ここであなたのマイク開始メソッドを呼び出します
+              _startListening(); 
+            } catch (e) {
+              print("マイクの再起動に失敗: $e");
+            }
+          });
+          setState(() { _statusText = '聞き取り中...'; });
         });
 
         audio.play();
