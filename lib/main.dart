@@ -64,27 +64,21 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  // 🛠️ iOSでクラッシュしないように音声周りの初期化を厳格化
+  // 🛠️ Web（Safari）でも綺麗に動くように初期化をシンプル化
   void _initSpeechAndTts() async {
     try {
       await _speech.initialize(
         onError: (val) => setState(() { _statusText = 'エラーが発生しました'; _isListening = false; }),
       );
       
-      // iOS向けのオーディオカテゴリ設定（マイクとスピーカーを両立させてクラッシュを防ぐ）
-      await _tts.setIosAudioCategory(
-        IosTextToSpeechAudioCategory.playAndRecord,
-        [
-          IosTextToSpeechAudioCategoryOptions.allowBluetooth,
-          IosTextToSpeechAudioCategoryOptions.defaultToSpeaker
-        ],
-      );
-      
+      // アプリ専用の設定を削除し、言語設定だけにします
       await _tts.setLanguage("en-US");
     } catch (e) {
       debugPrint("Initialization error: $e");
     }
   }
+
+
   void _toggleListening() async {
     if (!_isListening) {
       // すでに initState で initialize は終わっているので、
