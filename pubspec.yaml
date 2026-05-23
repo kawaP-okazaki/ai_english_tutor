@@ -30,6 +30,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  universal_html: ^2.2.4
 
   # ⬇️ 3つのプラグインの左側は「半角スペース2個」です。flutter: と縦のラインを綺麗に揃えます。
   speech_to_text: ^6.6.2

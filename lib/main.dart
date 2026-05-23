@@ -3,6 +3,7 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:universal_html/html.dart' as html; // 👈 『dart:html』からこれに書き換える！
 
 void main() {
   runApp(const MyApp());
@@ -186,9 +187,42 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+// 📄 lib/main.dart の _speak メソッドを以下に書き換えます
+
   void _speak(String text) async {
-    await _tts.setSpeechRate(_speed);
-    await _tts.speak(text);
+    final apiKey = _apiKeyController.text;
+    if (apiKey.isEmpty) return;
+
+    setState(() { _statusText = '音声を生成中...'; });
+
+    try {
+      final response = await http.post(
+        Uri.parse('https://api.openai.com/v1/audio/speech'),
+        headers: {
+          'Authorization': 'Bearer $apiKey',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'model': 'tts-1',           // OpenAIの高速高音質音声モデル
+          'input': text,
+          'voice': 'alloy',          // 💡 声の種類（alloy, echo, fable, onyx, nova, shimmer から選べます）
+          'speed': _speed,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        // Webブラウザで音声を再生するための特殊な処理
+        final blob = html.Blob([response.bodyBytes], 'audio/mp3');
+        final url = html.Url.createObjectUrlFromBlob(blob);
+        final audio = html.AudioElement(url);
+        audio.play();
+        setState(() { _statusText = '待機中...'; });
+      } else {
+        setState(() { _statusText = '音声生成エラー'; });
+      }
+    } catch (e) {
+      setState(() { _statusText = '音声再生に失敗しました'; });
+    }
   }
 
   void _repeatLast() {
