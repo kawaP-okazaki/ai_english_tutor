@@ -213,12 +213,20 @@ void _speak(String text) async {
         final url = html.Url.createObjectUrlFromBlob(blob);
         final audio = html.AudioElement(url);
         
-        // 💡 AIの音声が話し終わったら、自動的にマイクの聞き取り（_toggleListening）を呼び出す
+        // 💡 AIの音声が話し終わった時の処理
         audio.onEnded.listen((event) {
           Future.delayed(const Duration(milliseconds: 400), () {
-            // すでに聞き取り中でない場合（_isListening == false）のみ自動でマイクをONにする
-            if (!_isListening) {
-              _toggleListening(); 
+            setState(() {
+              // ① ボタンを「タップして話す」の緑色に戻すために、リスニング状態をリセット
+              _isListening = false; 
+              
+              // ② 状態テキストを待機中に戻す
+              _statusText = 'タップして話す'; 
+            });
+            
+            // ③ 自動で次の聞き取りを開始したい場合は、ここでマイクをトリガー
+            if (/* 自動でマイクをオンにしたい場合 */ true) {
+              _toggleListening();
             }
           });
         });
@@ -226,10 +234,16 @@ void _speak(String text) async {
         audio.play();
         setState(() { _statusText = 'AIが話し中...'; });
       } else {
-        setState(() { _statusText = '音声生成エラー'; });
+        setState(() { 
+          _isListening = false; // エラー時もボタンを復活させる
+          _statusText = '音声生成エラー'; 
+        });
       }
     } catch (e) {
-      setState(() { _statusText = '音声再生に失敗しました'; });
+      setState(() { 
+        _isListening = false; // エラー時もボタンを復活させる
+        _statusText = '音声再生に失敗しました'; 
+      });
     }
   }
 
